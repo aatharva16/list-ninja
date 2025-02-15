@@ -10,6 +10,7 @@ interface GroceryItem {
   name: string;
   created_at: string;
   updated_at: string;
+  user_id: string;
 }
 
 export default function GroceryList() {
@@ -34,6 +35,12 @@ export default function GroceryList() {
 
   const fetchItems = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/auth');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('grocery_items')
         .select('*')
@@ -51,9 +58,18 @@ export default function GroceryList() {
   const handleAddItem = async (name: string) => {
     if (name.trim()) {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate('/auth');
+          return;
+        }
+
         const { data, error } = await supabase
           .from('grocery_items')
-          .insert([{ name: name.trim() }])
+          .insert([{ 
+            name: name.trim(),
+            user_id: session.user.id
+          }])
           .select()
           .single();
 
