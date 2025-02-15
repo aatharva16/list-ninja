@@ -1,13 +1,15 @@
 
-import React, { useState, KeyboardEvent } from 'react';
-import { Plus, X, Edit, Check } from 'lucide-react';
+import React, { useState, KeyboardEvent, useEffect } from 'react';
+import { Plus, X, Edit, Check, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface GroceryItem {
   id: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function GroceryList() {
@@ -15,18 +17,54 @@ export default function GroceryList() {
   const [inputValue, setInputValue] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
-  const handleAddItem = (name: string) => {
+  useEffect(() => {
+    checkUser();
+    fetchItems();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/auth');
+    }
+  };
+
+  const fetchItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grocery_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setItems(data || []);
+    } catch (error: any) {
+      toast.error('Error fetching items: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddItem = async (name: string) => {
     if (name.trim()) {
-      const newItem: GroceryItem = {
-        id: crypto.randomUUID(),
-        name: name.trim(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setItems([...items, newItem]);
-      setInputValue('');
-      toast.success('Item added to list');
+      try {
+        const { data, error } = await supabase
+          .from('grocery_items')
+          .insert([{ name: name.trim() }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        
+        setItems([data, ...items]);
+        setInputValue('');
+        toast.success('Item added to list');
+      } catch (error: any) {
+        toast.error('Error adding item: ' + error.message);
+      }
     }
   };
 
@@ -36,9 +74,20 @@ export default function GroceryList() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
-    toast.success('Item removed from list');
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('grocery_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setItems(items.filter(item => item.id !== id));
+      toast.success('Item removed from list');
+    } catch (error: any) {
+      toast.error('Error deleting item: ' + error.message);
+    }
   };
 
   const startEdit = (item: GroceryItem) => {
@@ -46,32 +95,61 @@ export default function GroceryList() {
     setEditValue(item.name);
   };
 
-  const handleEdit = (id: string) => {
+  const handleEdit = async (id: string) => {
     if (editValue.trim()) {
-      setItems(items.map(item => 
-        item.id === id 
-          ? { ...item, name: editValue.trim(), updatedAt: new Date() }
-          : item
-      ));
-      setEditingId(null);
-      toast.success('Item updated');
+      try {
+        const { error } = await supabase
+          .from('grocery_items')
+          .update({ name: editValue.trim() })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setItems(items.map(item => 
+          item.id === id 
+            ? { ...item, name: editValue.trim() }
+            : item
+        ));
+        setEditingId(null);
+        toast.success('Item updated');
+      } catch (error: any) {
+        toast.error('Error updating item: ' + error.message);
+      }
     }
   };
 
-  const handleSave = () => {
-    if (items.length === 0) {
-      toast.error('Please add at least one item to your list');
-      return;
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/auth');
+    } catch (error: any) {
+      toast.error('Error signing out: ' + error.message);
     }
-    // Here we would normally save to the database
-    toast.success('Grocery list saved successfully!');
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 text-center">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-8 animate-fade-in">
-      <div>
-        <h2 className="text-3xl font-light text-gray-800 mb-2">Grocery List</h2>
-        <p className="text-sm text-gray-500">Add items to your shopping list</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-light text-gray-800 mb-2">Grocery List</h2>
+          <p className="text-sm text-gray-500">Add items to your shopping list</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="p-2 text-gray-400 hover:text-primary transition-colors"
+          title="Sign out"
+        >
+          <LogOut size={20} />
+        </button>
       </div>
 
       <div className="relative">
@@ -135,15 +213,6 @@ export default function GroceryList() {
           </div>
         ))}
       </div>
-
-      {items.length > 0 && (
-        <button
-          onClick={handleSave}
-          className="w-full bg-primary text-white py-3 px-6 rounded-lg hover:opacity-90 transition-opacity duration-200 font-medium"
-        >
-          Next
-        </button>
-      )}
     </div>
   );
 }
