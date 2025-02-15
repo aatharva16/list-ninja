@@ -33,6 +33,54 @@ export type Database = {
         }
         Relationships: []
       }
+      platforms: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_platform_selections: {
+        Row: {
+          created_at: string
+          id: string
+          pincode: string
+          platform_ids: string[]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pincode: string
+          platform_ids: string[]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pincode?: string
+          platform_ids?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
