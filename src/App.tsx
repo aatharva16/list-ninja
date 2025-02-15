@@ -1,10 +1,10 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Index from './pages/Index';
-import Auth from './pages/Auth';
-import NotFound from './pages/NotFound';
-import { Toaster } from './components/ui/sonner';
-import './App.css';
+import { Toaster } from '@/components/ui/sonner';
+import Index from '@/pages/Index';
+import Auth from '@/pages/Auth';
+import Confirmation from '@/pages/Confirmation';
+import NotFound from '@/pages/NotFound';
 
 function App() {
   return (
@@ -12,6 +12,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/confirmation" element={<Confirmation />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Toaster />

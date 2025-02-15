@@ -1,9 +1,9 @@
-
 import React, { useState, KeyboardEvent, useEffect } from 'react';
-import { Plus, X, Edit, Check, LogOut } from 'lucide-react';
+import { Plus, X, Edit, Check, LogOut, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface GroceryItem {
   id: string;
@@ -144,6 +144,20 @@ export default function GroceryList() {
     }
   };
 
+  const handleNext = async () => {
+    if (items.length === 0) {
+      toast.error('Please add at least one item to your list');
+      return;
+    }
+    
+    try {
+      toast.success('List saved successfully!');
+      navigate('/confirmation');
+    } catch (error: any) {
+      toast.error('Error saving list: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto p-6 text-center">
@@ -228,6 +242,16 @@ export default function GroceryList() {
             )}
           </div>
         ))}
+      </div>
+
+      <div className="flex justify-end mt-6">
+        <Button
+          onClick={handleNext}
+          className="flex items-center gap-2"
+        >
+          Next
+          <ArrowRight size={18} />
+        </Button>
       </div>
     </div>
   );
