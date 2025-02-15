@@ -30,7 +30,9 @@ export default function Auth() {
           password,
         });
         if (result.error) {
-          if (result.error.message.includes('Email not confirmed')) {
+          if (result.error.message.includes('Invalid login credentials')) {
+            toast.error('Invalid email or password. Please try again or sign up if you don\'t have an account.');
+          } else if (result.error.message.includes('Email not confirmed')) {
             toast.error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
           } else {
             throw result.error;
@@ -90,6 +92,7 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-1 w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200"
+                minLength={6}
               />
             </div>
           </div>
