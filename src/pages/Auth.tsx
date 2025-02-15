@@ -23,15 +23,22 @@ export default function Auth() {
           password,
         });
         if (result.error) throw result.error;
-        toast.success('Registration successful! Please check your email.');
+        toast.success('Registration successful! Please check your email for confirmation.');
       } else {
         result = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (result.error) throw result.error;
-        toast.success('Logged in successfully!');
-        navigate('/');
+        if (result.error) {
+          if (result.error.message.includes('Email not confirmed')) {
+            toast.error('Please confirm your email address before logging in. Check your inbox for the confirmation link.');
+          } else {
+            throw result.error;
+          }
+        } else {
+          toast.success('Logged in successfully!');
+          navigate('/');
+        }
       }
     } catch (error: any) {
       toast.error(error.message);
