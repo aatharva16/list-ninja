@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -137,9 +136,8 @@ export default function PlatformSelection() {
         }
       }
 
-      // Navigate to results page (to be implemented)
-      toast.success('Price comparison completed!');
-      // navigate('/comparison'); // Uncomment when comparison page is ready
+      // Navigate to comparison results page
+      navigate('/comparison-results');
     } catch (error: any) {
       toast.error('Error comparing prices: ' + error.message);
     } finally {

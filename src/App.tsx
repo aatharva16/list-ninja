@@ -6,6 +6,7 @@ import Auth from "@/pages/Auth";
 import NotFound from "@/pages/NotFound";
 import PlatformSelection from "@/pages/PlatformSelection";
 import Confirmation from "@/pages/Confirmation";
+import ComparisonResults from "@/pages/ComparisonResults";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/platform-selection" element={<PlatformSelection />} />
         <Route path="/confirmation" element={<Confirmation />} />
+        <Route path="/comparison-results" element={<ComparisonResults />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Toaster />
