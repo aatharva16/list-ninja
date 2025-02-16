@@ -20,6 +20,7 @@ export default function PlatformSelection() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [pincode, setPincode] = useState('');
   const [loading, setLoading] = useState(true);
+  const [scraping, setScraping] = useState(false);
 
   useEffect(() => {
     fetchPlatforms();
@@ -70,10 +71,12 @@ export default function PlatformSelection() {
     }
 
     try {
+      setScraping(true);
       const user = await supabase.auth.getUser();
       if (!user.data.user) throw new Error('No user found');
 
-      const { error } = await supabase
+      // Save user platform selections
+      const { error: selectionError } = await supabase
         .from('user_platform_selections')
         .insert({
           user_id: user.data.user.id,
@@ -81,13 +84,66 @@ export default function PlatformSelection() {
           platform_ids: selectedPlatforms
         });
 
-      if (error) throw error;
+      if (selectionError) throw selectionError;
 
-      toast.success('Preferences saved successfully!');
-      // Navigation to comparison page will be added later
-      // For now, we'll just show a success message
+      // Fetch grocery items for the user
+      const { data: groceryItems, error: groceryError } = await supabase
+        .from('grocery_items')
+        .select('name')
+        .eq('user_id', user.data.user.id);
+
+      if (groceryError) throw groceryError;
+
+      if (!groceryItems || groceryItems.length === 0) {
+        toast.error('No grocery items found. Please add items to your list first.');
+        return;
+      }
+
+      // Clear previous scraped results
+      const { error: deleteError } = await supabase
+        .from('scraped_results')
+        .delete()
+        .eq('user_id', user.data.user.id);
+
+      if (deleteError) throw deleteError;
+
+      // Start scraping for each platform
+      for (const platformId of selectedPlatforms) {
+        const platform = platforms.find(p => p.id === platformId);
+        if (!platform) continue;
+
+        if (platform.name.toLowerCase().includes('blinkit')) {
+          toast.info(`Scraping prices from ${platform.name}...`);
+          
+          const { data: scrapedData, error: scrapeError } = await supabase.functions.invoke(
+            'scrape-blinkit',
+            {
+              body: {
+                pincode,
+                groceryItems: groceryItems.map(item => item.name),
+                platformId
+              }
+            }
+          );
+
+          if (scrapeError) {
+            toast.error(`Error scraping from ${platform.name}: ${scrapeError.message}`);
+            continue;
+          }
+
+          if (scrapedData?.success) {
+            toast.success(`Successfully scraped prices from ${platform.name}`);
+          }
+        }
+      }
+
+      // Navigate to results page (to be implemented)
+      toast.success('Price comparison completed!');
+      // navigate('/comparison'); // Uncomment when comparison page is ready
     } catch (error: any) {
-      toast.error('Error saving preferences: ' + error.message);
+      toast.error('Error comparing prices: ' + error.message);
+    } finally {
+      setScraping(false);
     }
   };
 
@@ -162,8 +218,9 @@ export default function PlatformSelection() {
             onClick={handleComparePrices}
             className="mt-8"
             size="lg"
+            disabled={scraping}
           >
-            Compare Prices
+            {scraping ? 'Comparing Prices...' : 'Compare Prices'}
           </Button>
         </div>
       </div>

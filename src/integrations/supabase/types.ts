@@ -57,6 +57,53 @@ export type Database = {
         }
         Relationships: []
       }
+      scraped_results: {
+        Row: {
+          grocery_item: string
+          id: string
+          is_available: boolean | null
+          platform_id: string
+          price: number
+          product_name: string
+          scraped_at: string | null
+          special_offer: string | null
+          unit_size: string | null
+          user_id: string
+        }
+        Insert: {
+          grocery_item: string
+          id?: string
+          is_available?: boolean | null
+          platform_id: string
+          price: number
+          product_name: string
+          scraped_at?: string | null
+          special_offer?: string | null
+          unit_size?: string | null
+          user_id: string
+        }
+        Update: {
+          grocery_item?: string
+          id?: string
+          is_available?: boolean | null
+          platform_id?: string
+          price?: number
+          product_name?: string
+          scraped_at?: string | null
+          special_offer?: string | null
+          unit_size?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scraped_results_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_platform_selections: {
         Row: {
           created_at: string
