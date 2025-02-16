@@ -1,57 +1,23 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Toggle } from '@/components/ui/toggle';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-
-interface Platform {
-  id: string;
-  name: string;
-  logo_url: string;
-}
+import { PlatformToggle } from '@/components/platform-selection/PlatformToggle';
+import { PincodeInput } from '@/components/platform-selection/PincodeInput';
+import { usePlatformSelection } from '@/hooks/usePlatformSelection';
 
 export default function PlatformSelection() {
   const navigate = useNavigate();
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const { platforms, selectedPlatforms, loading, fetchPlatforms, togglePlatform } = usePlatformSelection();
   const [pincode, setPincode] = useState('');
-  const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
 
   useEffect(() => {
     fetchPlatforms();
   }, []);
-
-  const fetchPlatforms = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('platforms')
-        .select('*');
-      
-      if (error) throw error;
-      setPlatforms(data || []);
-    } catch (error: any) {
-      toast.error('Error loading platforms: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const togglePlatform = (platformId: string) => {
-    setSelectedPlatforms(prev => {
-      if (prev.includes(platformId)) {
-        return prev.filter(id => id !== platformId);
-      }
-      if (prev.length >= 4) {
-        toast.error('You can select up to 4 platforms');
-        return prev;
-      }
-      return [...prev, platformId];
-    });
-  };
 
   const validatePincode = (pincode: string) => {
     const pincodeRegex = /^[1-9][0-9]{5}$/;
@@ -175,19 +141,7 @@ export default function PlatformSelection() {
             <p className="text-gray-500">Choose platforms to compare prices and enter your location</p>
           </div>
 
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Enter Pincode
-            </label>
-            <Input
-              type="text"
-              placeholder="Enter 6-digit pincode"
-              value={pincode}
-              onChange={(e) => setPincode(e.target.value)}
-              maxLength={6}
-              className="max-w-[200px]"
-            />
-          </div>
+          <PincodeInput value={pincode} onChange={setPincode} />
 
           <div className="space-y-4">
             <label className="block text-sm font-medium text-gray-700">
@@ -195,19 +149,12 @@ export default function PlatformSelection() {
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {platforms.map((platform) => (
-                <Toggle
+                <PlatformToggle
                   key={platform.id}
-                  pressed={selectedPlatforms.includes(platform.id)}
-                  onPressedChange={() => togglePlatform(platform.id)}
-                  className="h-32 w-full border-2 flex flex-col items-center justify-center gap-2 data-[state=on]:border-primary"
-                >
-                  <img
-                    src={platform.logo_url}
-                    alt={platform.name}
-                    className="w-16 h-16 object-contain"
-                  />
-                  <span className="text-sm font-medium">{platform.name}</span>
-                </Toggle>
+                  platform={platform}
+                  isSelected={selectedPlatforms.includes(platform.id)}
+                  onToggle={togglePlatform}
+                />
               ))}
             </div>
           </div>
