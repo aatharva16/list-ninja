@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
     })
 
     const { pincode, groceryItems, platformId } = await req.json() as RequestBody
+    console.log('Received request with:', { pincode, groceryItems, platformId })
 
     // Get the user ID from the request
     const authHeader = req.headers.get('Authorization')?.split('Bearer ')[1]
@@ -47,6 +48,7 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('Authenticated user:', user.id)
     const results = []
     
     for (const item of groceryItems) {
@@ -71,6 +73,8 @@ Deno.serve(async (req) => {
         }
       })
 
+      console.log(`Scraping results for ${item}:`, result)
+
       if (result.success) {
         // Process and store results
         const { data: insertResult, error: insertError } = await supabaseClient
@@ -88,6 +92,8 @@ Deno.serve(async (req) => {
 
         if (insertError) {
           console.error('Error inserting results:', insertError)
+        } else {
+          console.log(`Successfully inserted results for ${item}`)
         }
 
         results.push(...result.data)

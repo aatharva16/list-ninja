@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -31,12 +32,15 @@ export default function ComparisonResults() {
 
   const fetchResults = async () => {
     try {
+      console.log('Fetching results...');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log('No user found');
         toast.error('Please login to view results');
         navigate('/auth');
         return;
       }
+      console.log('User authenticated:', user.id);
 
       const { data, error } = await supabase
         .from('scraped_results')
@@ -44,10 +48,16 @@ export default function ComparisonResults() {
         .eq('user_id', user.id)
         .order('price', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching results:', error);
+        throw error;
+      }
+
+      console.log('Fetched results:', data);
 
       // Group results by grocery item
       const grouped = (data || []).reduce((acc: GroupedResults, result) => {
+        console.log('Processing result:', result);
         if (!acc[result.grocery_item]) {
           acc[result.grocery_item] = [];
         }
@@ -58,8 +68,10 @@ export default function ComparisonResults() {
         return acc;
       }, {});
 
+      console.log('Grouped results:', grouped);
       setGroupedResults(grouped);
     } catch (error: any) {
+      console.error('Error in fetchResults:', error);
       toast.error('Error fetching results: ' + error.message);
     } finally {
       setLoading(false);
