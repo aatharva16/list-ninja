@@ -13,6 +13,18 @@ interface RequestBody {
   platformId: string;
 }
 
+interface ExtractedProduct {
+  product_name: string;
+  price: number;
+  Outofstock: boolean;
+  "Website Name": string;
+  Quantity: string | null;
+}
+
+interface ExtractSchema {
+  products: ExtractedProduct[];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -49,45 +61,78 @@ Deno.serve(async (req) => {
     }
 
     console.log('Authenticated user:', user.id)
+
+    // Get platform details
+    const { data: platform } = await supabaseClient
+      .from('platforms')
+      .select('name')
+      .eq('id', platformId)
+      .single()
+
+    if (!platform) {
+      throw new Error('Platform not found')
+    }
+
     const results = []
     
     for (const item of groceryItems) {
-      console.log(`Scraping Blinkit for item: ${item}`)
+      console.log(`Scraping for item: ${item}`)
       
-      const searchUrl = `https://blinkit.com/s/?q=${encodeURIComponent(item)}`
-      const result = await firecrawl.crawlUrl(searchUrl, {
-        limit: 5, // Limit to top 5 results per item
+      const urls = []
+      if (platform.name === 'Blinkit') {
+        urls.push(`https://blinkit.com/s/?q=${encodeURIComponent(item)}`)
+      } else if (platform.name === 'Zepto') {
+        urls.push(`https://zepto.com/search?query=${encodeURIComponent(item)}`)
+      } else if (platform.name === 'Swiggy Instamart') {
+        urls.push(`https://swiggy.com/instamart/search?custom_back=true&query=${encodeURIComponent(item)}*`)
+      }
+
+      const extractSchema = {
+        type: 'object',
+        properties: {
+          products: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                product_name: { type: 'string' },
+                price: { type: 'number' },
+                Outofstock: { type: 'boolean' },
+                'Website Name': { type: 'string' },
+                Quantity: { type: ['string', 'null'] }
+              },
+              required: ['product_name', 'price', 'Outofstock', 'Website Name']
+            }
+          }
+        }
+      }
+
+      const result = await firecrawl.extract(urls, {
+        prompt: `Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.`,
+        schema: extractSchema,
         cookies: [{
           name: 'location',
           value: pincode,
-          domain: 'blinkit.com'
-        }],
-        scrapeOptions: {
-          selectors: {
-            productName: '.product-name',
-            price: '.product-price',
-            unitSize: '.unit-size',
-            specialOffer: '.special-offer',
-            availability: '.availability-status'
-          }
-        }
+          domain: platform.name.toLowerCase().includes('blinkit') ? 'blinkit.com' : 
+                 platform.name.toLowerCase().includes('zepto') ? 'zepto.com' : 
+                 'swiggy.com'
+        }]
       })
 
-      console.log(`Scraping results for ${item}:`, result)
+      console.log(`Extraction results for ${item}:`, result)
 
-      if (result.success) {
+      if (result.success && result.data.products) {
         // Process and store results
-        const { data: insertResult, error: insertError } = await supabaseClient
+        const { error: insertError } = await supabaseClient
           .from('scraped_results')
-          .insert(result.data.map((product: any) => ({
+          .insert(result.data.products.map((product: ExtractedProduct) => ({
             user_id: user.id,
             platform_id: platformId,
             grocery_item: item,
-            product_name: product.productName || 'N/A',
-            price: parseFloat(product.price?.replace(/[^0-9.]/g, '') || '0'),
-            unit_size: product.unitSize || null,
-            special_offer: product.specialOffer || null,
-            is_available: product.availability !== 'Out of Stock'
+            product_name: product.product_name,
+            price: product.price,
+            unit_size: product.Quantity,
+            is_available: !product.Outofstock
           })))
 
         if (insertError) {
@@ -96,7 +141,7 @@ Deno.serve(async (req) => {
           console.log(`Successfully inserted results for ${item}`)
         }
 
-        results.push(...result.data)
+        results.push(...result.data.products)
       }
     }
 
@@ -106,7 +151,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in scrape-blinkit function:', error)
+    console.error('Error in scraping function:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
