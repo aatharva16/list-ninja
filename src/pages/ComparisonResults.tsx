@@ -50,14 +50,21 @@ export default function ComparisonResults() {
 
       if (error) {
         console.error('Error fetching results:', error);
-        throw error;
+        toast.error('Error fetching results: ' + error.message);
+        return;
       }
 
       console.log('Fetched results:', data);
 
+      if (!data || data.length === 0) {
+        console.log('No results found');
+        setGroupedResults({});
+        setLoading(false);
+        return;
+      }
+
       // Group results by grocery item
-      const grouped = (data || []).reduce((acc: GroupedResults, result) => {
-        console.log('Processing result:', result);
+      const grouped = data.reduce((acc: GroupedResults, result) => {
         if (!acc[result.grocery_item]) {
           acc[result.grocery_item] = [];
         }
@@ -86,7 +93,11 @@ export default function ComparisonResults() {
     return (
       <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-4xl mx-auto p-6">
-          Loading results...
+          <div className="flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-gray-500">Loading your comparison results...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -107,11 +118,14 @@ export default function ComparisonResults() {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">Blinkit Price Comparison</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-6">Price Comparison Results</h1>
           
           {Object.keys(groupedResults).length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No results found. Try searching for different items.</p>
+              <p className="text-gray-500 mb-4">No results found. Try searching for different items.</p>
+              <Button onClick={() => navigate('/platform-selection')} variant="default">
+                Start New Comparison
+              </Button>
             </div>
           ) : (
             <div className="grid gap-6">
