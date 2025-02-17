@@ -115,10 +115,7 @@ Deno.serve(async (req) => {
         const result = await firecrawl.extract([searchUrl], {
           prompt: `Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.`,
           schema: extractSchema,
-          headers: {
-            'Cookie': `location=${pincode}; domain=${platform.name.toLowerCase().includes('blinkit') ? 'blinkit.com' : 
-                     platform.name.toLowerCase().includes('zepto') ? 'zepto.in' : 
-                     'swiggy.com'}`
+
           }
         })
 
