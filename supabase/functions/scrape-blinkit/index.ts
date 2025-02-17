@@ -1,6 +1,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import FirecrawlApp from 'https://esm.sh/@mendable/firecrawl-js'
+import FirecrawlApp from "@mendable/firecrawl-js";
+import { z } from "zod";
+
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,10 +35,9 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
-
-    const firecrawl = new FirecrawlApp({
-      apiKey: Deno.env.get('FIRECRAWL_API_KEY') ?? '',
-    })
+    const app = new FirecrawlApp({
+      apiKey: Deno.env.get('FIRECRAWL_API_KEY')
+    });
 
     console.log('Getting request body...');
     const { pincode, groceryItems, platformId } = await req.json() as RequestBody
@@ -91,33 +93,24 @@ Deno.serve(async (req) => {
 
       console.log('Searching URL:', searchUrl);
 
-      const extractSchema = {
-        type: 'object',
-        properties: {
-          products: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                product_name: { type: 'string' },
-                price: { type: 'number' },
-                Outofstock: { type: 'boolean' },
-                'Website Name': { type: 'string' },
-                Quantity: { type: ['string', 'null'] }
-              },
-              required: ['product_name', 'price', 'Outofstock', 'Website Name']
-            }
-          }
-        }
-      }
-
+      const extractSchema = product.object({
+        Product_Name: product.string(),
+        Out_of_stock: product.boolean(),
+        Price: product.string(),
+        unit_size: product.string()
+      });
+      async function scrapeData(): Promise<void> {
       try {
-        const result = await firecrawl.extract([searchUrl], {
-          prompt: `Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.`,
+        const srapeResult = await app.extract([searchUrl], {
+          prompt: "Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.",
           schema: extractSchema,
 
           }
-        })
+      );
+
+      if (!scrapeResult.success) {
+        throw new Error(`Failed to scrape: ${scrapeResult.error}`);
+      }
 
         console.log(`Extraction results for ${item}:`, result);
 
