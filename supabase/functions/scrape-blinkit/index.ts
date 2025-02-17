@@ -21,16 +21,13 @@ interface ExtractedProduct {
   Quantity: string | null;
 }
 
-interface ExtractSchema {
-  products: ExtractedProduct[];
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    console.log('Edge function started');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -40,6 +37,7 @@ Deno.serve(async (req) => {
       apiKey: Deno.env.get('FIRECRAWL_API_KEY') ?? '',
     })
 
+    console.log('Getting request body...');
     const { pincode, groceryItems, platformId } = await req.json() as RequestBody
     console.log('Received request with:', { pincode, groceryItems, platformId })
 
@@ -73,19 +71,25 @@ Deno.serve(async (req) => {
       throw new Error('Platform not found')
     }
 
+    console.log('Found platform:', platform.name);
     const results = []
     
     for (const item of groceryItems) {
       console.log(`Scraping for item: ${item}`)
       
-      const urls = []
+      let searchUrl;
       if (platform.name === 'Blinkit') {
-        urls.push(`https://blinkit.com/s/?q=${encodeURIComponent(item)}`)
+        searchUrl = `https://blinkit.com/s/?q=${encodeURIComponent(item)}`;
       } else if (platform.name === 'Zepto') {
-        urls.push(`https://zepto.com/search?query=${encodeURIComponent(item)}`)
+        searchUrl = `https://www.zepto.in/search?q=${encodeURIComponent(item)}`;
       } else if (platform.name === 'Swiggy Instamart') {
-        urls.push(`https://swiggy.com/instamart/search?custom_back=true&query=${encodeURIComponent(item)}*`)
+        searchUrl = `https://www.swiggy.com/search?query=${encodeURIComponent(item)}`;
+      } else {
+        console.log('Unsupported platform:', platform.name);
+        continue;
       }
+
+      console.log('Searching URL:', searchUrl);
 
       const extractSchema = {
         type: 'object',
@@ -107,41 +111,47 @@ Deno.serve(async (req) => {
         }
       }
 
-      const result = await firecrawl.extract(urls, {
-        prompt: `Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.`,
-        schema: extractSchema,
-        cookies: [{
-          name: 'location',
-          value: pincode,
-          domain: platform.name.toLowerCase().includes('blinkit') ? 'blinkit.com' : 
-                 platform.name.toLowerCase().includes('zepto') ? 'zepto.com' : 
-                 'swiggy.com'
-        }]
-      })
+      try {
+        const result = await firecrawl.extract([searchUrl], {
+          prompt: `Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.`,
+          schema: extractSchema,
+          cookies: [{
+            name: 'location',
+            value: pincode,
+            domain: platform.name.toLowerCase().includes('blinkit') ? 'blinkit.com' : 
+                   platform.name.toLowerCase().includes('zepto') ? 'zepto.in' : 
+                   'swiggy.com'
+          }]
+        })
 
-      console.log(`Extraction results for ${item}:`, result)
+        console.log(`Extraction results for ${item}:`, result);
 
-      if (result.success && result.data.products) {
-        // Process and store results
-        const { error: insertError } = await supabaseClient
-          .from('scraped_results')
-          .insert(result.data.products.map((product: ExtractedProduct) => ({
-            user_id: user.id,
-            platform_id: platformId,
-            grocery_item: item,
-            product_name: product.product_name,
-            price: product.price,
-            unit_size: product.Quantity,
-            is_available: !product.Outofstock
-          })))
+        if (result.success && result.data.products) {
+          // Process and store results
+          const { error: insertError } = await supabaseClient
+            .from('scraped_results')
+            .insert(result.data.products.map((product: ExtractedProduct) => ({
+              user_id: user.id,
+              platform_id: platformId,
+              grocery_item: item,
+              product_name: product.product_name,
+              price: product.price,
+              unit_size: product.Quantity,
+              is_available: !product.Outofstock
+            })))
 
-        if (insertError) {
-          console.error('Error inserting results:', insertError)
-        } else {
-          console.log(`Successfully inserted results for ${item}`)
+          if (insertError) {
+            console.error('Error inserting results:', insertError)
+          } else {
+            console.log(`Successfully inserted results for ${item}`)
+          }
+
+          results.push(...result.data.products)
         }
-
-        results.push(...result.data.products)
+      } catch (error) {
+        console.error(`Error scraping ${item} from ${platform.name}:`, error);
+        // Continue with other items even if one fails
+        continue;
       }
     }
 
