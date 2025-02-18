@@ -1,9 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import FirecrawlApp from "@mendable/firecrawl-js";
-import { z } from "zod";
-
-
+import FirecrawlApp from "@mendable/firecrawl-js"
+import { z } from "zod"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,14 +12,6 @@ interface RequestBody {
   pincode: string;
   groceryItems: string[];
   platformId: string;
-}
-
-interface ExtractedProduct {
-  product_name: string;
-  price: number;
-  Outofstock: boolean;
-  "Website Name": string;
-  Quantity: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -35,6 +25,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
+
     const app = new FirecrawlApp({
       apiKey: Deno.env.get('FIRECRAWL_API_KEY')
     });
@@ -76,6 +67,14 @@ Deno.serve(async (req) => {
     console.log('Found platform:', platform.name);
     const results = []
     
+    // Define Zod schema for product extraction
+    const productSchema = z.object({
+      product_name: z.string(),
+      price: z.number(),
+      out_of_stock: z.boolean(),
+      unit_size: z.string().nullable()
+    });
+
     for (const item of groceryItems) {
       console.log(`Scraping for item: ${item}`)
       
@@ -93,39 +92,37 @@ Deno.serve(async (req) => {
 
       console.log('Searching URL:', searchUrl);
 
-      const extractSchema = product.object({
-        Product_Name: product.string(),
-        Out_of_stock: product.boolean(),
-        Price: product.string(),
-        unit_size: product.string()
-      });
-      async function scrapeData(): Promise<void> {
       try {
-        const srapeResult = await app.extract([searchUrl], {
-          prompt: "Search for ${item} on ${platform.name} with the location set to pincode ${pincode}. Extract the price for the top 3 cheapest search results, including the product name and price.",
-          schema: extractSchema,
-
+        const scrapeResult = await app.extract([searchUrl], {
+          prompt: `Search for ${item} on ${platform.name} and extract the following information for the top 3 products:
+                  - Product name
+                  - Price in INR (as a number)
+                  - Whether the product is out of stock (true/false)
+                  - Unit size/weight (if available)`,
+          schema: productSchema,
+          headers: {
+            'Cookie': `location=${pincode}`
           }
-      );
+        });
 
-      if (!scrapeResult.success) {
-        throw new Error(`Failed to scrape: ${scrapeResult.error}`);
-      }
+        if (!scrapeResult.success) {
+          throw new Error(`Failed to scrape: ${scrapeResult.error}`);
+        }
 
-        console.log(`Extraction results for ${item}:`, result);
+        console.log(`Extraction results for ${item}:`, scrapeResult.data);
 
-        if (result.success && result.data.products) {
+        if (scrapeResult.success && Array.isArray(scrapeResult.data)) {
           // Process and store results
           const { error: insertError } = await supabaseClient
             .from('scraped_results')
-            .insert(result.data.products.map((product: ExtractedProduct) => ({
+            .insert(scrapeResult.data.map((product) => ({
               user_id: user.id,
               platform_id: platformId,
               grocery_item: item,
               product_name: product.product_name,
               price: product.price,
-              unit_size: product.Quantity,
-              is_available: !product.Outofstock
+              unit_size: product.unit_size,
+              is_available: !product.out_of_stock
             })))
 
           if (insertError) {
@@ -134,7 +131,7 @@ Deno.serve(async (req) => {
             console.log(`Successfully inserted results for ${item}`)
           }
 
-          results.push(...result.data.products)
+          results.push(...scrapeResult.data)
         }
       } catch (error) {
         console.error(`Error scraping ${item} from ${platform.name}:`, error);
